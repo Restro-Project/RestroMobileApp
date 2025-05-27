@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "820287750310",
+    "project_id": "restroapp-flutter",
+    "storage_bucket": "restroapp-flutter.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:820287750310:android:d9935eeaa93db4b062f467",
+        "android_client_info": {
+          "package_name": "com.example.restro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBu8u_ZAEZSPM8qUQEtquwAm-EMfMUxxnc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
