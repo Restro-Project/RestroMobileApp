@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,12 +18,12 @@ class _SplashPageState extends State<SplashPage> {
   Future<void> _decide() async {
     final prefs = await SharedPreferences.getInstance();
     final onboardDone = prefs.getBool('onboard_done') ?? false;
-    final user = FirebaseAuth.instance.currentUser;
+    final hasToken = prefs.getString('token') != null;
 
     await Future.delayed(const Duration(seconds: 1));     // logo delay
 
     if (!mounted) return;
-    if (user != null) {
+    if (hasToken) {
       context.go('/home');
     } else if (!onboardDone) {
       context.go('/onboarding');

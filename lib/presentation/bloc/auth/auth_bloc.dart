@@ -1,104 +1,111 @@
 import 'dart:async';
 import 'package:bloc/bloc.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:dio/dio.dart';
+import 'package:equatable/equatable.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../data/api_service.dart';
 import 'auth_event.dart';
-import 'auth_state.dart';
+
+part 'auth_state.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
-  final FirebaseAuth _auth;
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  static const _timeout = Duration(seconds: 10);
+  AuthBloc() : super(AuthInitial()) {
+    _bootstrap();                       // cek token lokal dulu
 
-  AuthBloc(this._auth) : super(AuthInitial()) {
-    // ---------- LOGIN ----------
-    on<SignInRequested>((e, emit) async {
-      emit(AuthLoading());
-      try {
-        final cred = await _auth
-            .signInWithEmailAndPassword(email: e.email, password: e.password)
-            .timeout(_timeout);
+    /* ---------- LOGIN ---------- */
+    on<SignInRequested>(_onLogin);
 
-        /* --- ambil profil --- */
-        final snap = await _db.collection('users').doc(cred.user!.uid).get();
-        if (snap.exists) {
-          final data = snap.data()!;
-          // simpan ke profile Auth → cukup sekali agar bisa dipakai offline
-          await cred.user!.updateDisplayName(data['username'] as String?);
-        }
+    /* ---------- REGISTER ---------- */
+    on<SignUpRequested>(_onRegister);
 
-        emit(AuthSuccess());
-      } on TimeoutException {
-        emit(AuthFailure('Gagal terhubung ke server'));
-      } on FirebaseAuthException catch (e) {
-        emit(AuthFailure(_msgLogin(e.code, e.message)));
-      }
-    });
+    /* ---------- LOGOUT ---------- */
+    on<SignOutRequested>(_onLogout);
 
-    // ---------- REGISTER ----------
-    on<SignUpRequested>((e, emit) async {
-      emit(AuthLoading());
-      try {
-        final cred = await _auth
-            .createUserWithEmailAndPassword(
-          email   : e.email,
-          password: e.password,
-        )
-            .timeout(_timeout);
-
-        /* simpan SEMUA field langsung */
-        await _db.collection('users').doc(cred.user!.uid).set({
-          // akun
-          'username'      : e.username,
-          'fullName'      : e.fullName,
-          'email'         : e.email,
-          'phone'         : e.phone,
-
-          // pasien
-          'gender'        : e.gender,
-          'birthDate'     : e.birthDate,
-          'birthPlace'    : e.birthPlace,
-          'address'       : e.address,
-          'companionName' : e.companionName,
-
-          // kesehatan
-          'height'        : e.height,
-          'weight'        : e.weight,
-          'bloodType'     : e.bloodType,
-          'medicalHistory': e.medicalHistory,
-          'allergyHistory': e.allergyHistory,
-
-          'createdAt'     : FieldValue.serverTimestamp(),
-        });
-
-        /* displayName diset = username supaya Profile cepat ter-muat */
-        await cred.user!.updateDisplayName(e.username);
-
-        emit(AuthSuccess());
-      } on TimeoutException {
-        emit(AuthFailure('Gagal terhubung ke server'));
-      } on FirebaseAuthException catch (ex) {
-        emit(AuthFailure(_msgRegister(ex.code, ex.message)));
-      }
-    });
-
-    // ---------- LOG-OUT ----------
-    on<SignOutRequested>((_, emit) async {
-      await _auth.signOut();
-      emit(AuthInitial());
-    });
+    /* ---------- UPDATE PROFILE ---------- */
+    on<UpdateProfileRequested>(_onUpdateProfile);
   }
 
-  /* ---------- helper pesan error ---------- */
-  String _msgLogin(String code, String? def) => switch (code) {
-    'wrong-password' => 'Password salah',
-    'user-not-found' => 'Email belum terdaftar',
-    _                => def ?? 'Login gagal',
-  };
+  /* ------------ in-memory token ------------- */
+  String? _token;            // null = belum login
+  bool get isLoggedIn => _token != null;
 
-  String _msgRegister(String code, String? def) => switch (code) {
-    'email-already-in-use' => 'Email sudah terdaftar',
-    'weak-password'        => 'Password minimal 6 karakter',
-    _                      => def ?? 'Registrasi gagal',
-  };
+  /* ------------ boot : baca token di SharedPreferences ------------ */
+  Future<void> _bootstrap() async {
+    final prefs = await SharedPreferences.getInstance();
+    _token = prefs.getString('token');
+    if (_token != null) emit(AuthSuccess());      // langsung anggap login
+  }
+
+  /* ------------ handler ------------ */
+  Future<void> _onLogin(SignInRequested e, Emitter<AuthState> emit) async {
+    emit(AuthLoading());
+    try {
+      final res = await ApiService.dio.post('/auth/pasien/login', data: {
+        'identifier': e.identifier,
+        'password'  : e.password,
+      });
+
+      _token = res.data['access_token'] as String;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('token', _token!);
+
+      emit(AuthSuccess());
+    } catch (err) {
+      emit(AuthFailure(_msg(err)));
+    }
+  }
+
+  Future<void> _onRegister(
+      SignUpRequested e, Emitter<AuthState> emit) async {
+    emit(AuthLoading());
+    try {
+      await ApiService.dio.post('/auth/pasien/register', data: {
+        'username'     : e.username,
+        'nama_lengkap' : e.fullName,
+        'email'        : e.email,
+        'password'     : e.password,
+        'nomor_telepon': e.phone,
+      });
+
+      add(SignInRequested(e.email, e.password));   // auto login
+    } catch (err) {
+      emit(AuthFailure(_msg(err)));
+    }
+  }
+
+  Future<void> _onLogout(
+      SignOutRequested e, Emitter<AuthState> emit) async {
+    try {
+      await ApiService.dio.post('/auth/logout');
+    } catch (_) {}
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('token');
+    _token = null;
+    emit(AuthInitial());
+  }
+
+  Future<void> _onUpdateProfile(
+      UpdateProfileRequested e, Emitter<AuthState> emit) async {
+    emit(AuthLoading());
+    try {
+      await ApiService.dio.put('/api/patient/profile', data: e.data);
+      emit(AuthSuccess());
+    } catch (err) {
+      emit(AuthFailure(_msg(err)));
+    }
+  }
+
+  /* ------------ helper pesan error ------------ */
+  String _msg(Object err) {
+    if (err is DioException) {
+      final data = err.response?.data;
+      if (data is Map<String, dynamic> && data['msg'] != null) {
+        return data['msg'].toString();
+      }
+      return err.response?.statusMessage ??
+          err.message ??
+          'Terjadi kesalahan tak terduga';
+    }
+    return err.toString();
+  }
 }

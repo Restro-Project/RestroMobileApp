@@ -1,27 +1,74 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-class ProfilePage extends StatelessWidget {
+import '../../../data/api_service.dart';
+import '../../bloc/auth/auth_bloc.dart';
+import '../../bloc/auth/auth_event.dart';
+
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  late Future<Map<String, dynamic>> _futureProfile;
 
   @override
-  Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    final doc = FirebaseFirestore.instance.collection('users').doc(uid);
+  void initState() {
+    super.initState();
+    _futureProfile = _fetchProfile();
+  }
 
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: doc.snapshots(),
-      builder: (c, s) {
-        if (!s.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final d = s.data!.data()!;
-        final uname = d['username'] ?? '';
-        final fname = d['fullName'] ?? '';
+  /* ───── HTTP ─────────────────────────────────────────────── */
+  Future<Map<String, dynamic>> _fetchProfile() async {
+    try {
+      final res = await ApiService.dio.get('/api/patient/profile');
+      return Map<String, dynamic>.from(res.data);
+    } on DioException catch (e) {
+      // 422/404 -> profil belum ada
+      if (e.response?.statusCode == 422 || e.response?.statusCode == 404) {
+        return {};
+      }
+      if ([401, 403].contains(e.response?.statusCode)) {
+        if (mounted) context.read<AuthBloc>().add(SignOutRequested());
+      }
+      rethrow;
+    }
+  }
 
-        return SafeArea(
+  /* ───── UI ──────────────────────────────────────────────── */
+  @override
+  Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
+    future: _futureProfile,
+    builder: (_, snap) {
+      /* LOADING */
+      if (snap.connectionState == ConnectionState.waiting) {
+        return const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        );
+      }
+
+      /* ERROR */
+      if (snap.hasError) {
+        return _errorLayout();
+      }
+
+      /* DATA */
+      final data  = snap.data ?? {};
+      final uname = (data['username']      ?? '').toString();
+      final fname = (data['nama_lengkap']  ?? '').toString();
+      final email = (data['email']         ?? '').toString();
+
+      return RefreshIndicator(
+        onRefresh: () {
+          final newFuture = _fetchProfile();
+          setState(() => _futureProfile = newFuture);
+          return newFuture;
+        },
+        child: SafeArea(
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             children: [
@@ -30,70 +77,86 @@ class ProfilePage extends StatelessWidget {
                 radius: 56,
                 backgroundColor: Colors.grey.shade300,
                 child: Text(
-                  uname.isEmpty ? '?' : uname[0].toUpperCase(),
-                  style: const TextStyle(fontSize: 40, color: Colors.white),
+                  (uname.isNotEmpty ? uname[0] : '?').toUpperCase(),
+                  style: const TextStyle(
+                      fontSize: 40, color: Colors.white),
                 ),
               ),
               const SizedBox(height: 12),
               Center(
                 child: Column(
                   children: [
-                    Text(fname,
-                        style: const TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text(
+                      fname.isEmpty ? email : fname,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
                     Text(uname,
-                        style:
-                        const TextStyle(color: Colors.green, fontSize: 14)),
+                        style: const TextStyle(
+                            color: Colors.green, fontSize: 14)),
                   ],
                 ),
               ),
               const SizedBox(height: 32),
-
-              /* ---------- menu ---------- */
-              _tile(
-                icon: Icons.phone_iphone,
-                label: 'Informasi Akun',
-                onTap: () => context.push('/account-info'),
-              ),
-              _tile(
-                icon: Icons.person,
-                label: 'Informasi Pasien',
-                onTap: () => context.push('/patient-info'),
-              ),
-              _tile(
-                icon: Icons.health_and_safety,
-                label: 'Informasi Kesehatan',
-                onTap: () => context.push('/health-info'),
-              ),
-
+              _tile(Icons.phone_iphone, 'Informasi Akun', () async {
+                await context.push('/account-info');
+                setState(() => _futureProfile = _fetchProfile());
+              }),
+              _tile(Icons.person, 'Informasi Pasien', () async {
+                await context.push('/patient-info');
+                setState(() => _futureProfile = _fetchProfile());
+              }),
+              _tile(Icons.health_and_safety, 'Informasi Kesehatan',
+                      () async {
+                    await context.push('/health-info');
+                    setState(() => _futureProfile = _fetchProfile());
+                  }),
               const SizedBox(height: 32),
               Center(
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.logout),
                   label: const Text('Keluar'),
                   onPressed: () =>
-                      FirebaseAuth.instance.signOut(), // router akan redirect
+                      context.read<AuthBloc>().add(SignOutRequested()),
                 ),
-              )
+              ),
             ],
           ),
-        );
-      },
-    );
-  }
-
-  Widget _tile(
-      {required IconData icon,
-        required String label,
-        required VoidCallback onTap}) =>
-      ListTile(
-        leading: CircleAvatar(
-          radius: 20,
-          backgroundColor: Colors.orange.shade100,
-          child: Icon(icon, color: Colors.green),
         ),
-        title: Text(label),
-        trailing: const Icon(Icons.chevron_right, color: Colors.green),
-        onTap: onTap,
       );
+    },
+  );
+
+  /* ───── Helper Widget ───────────────────────────────────── */
+  Widget _tile(IconData icon, String label, VoidCallback onTap) => ListTile(
+    leading: CircleAvatar(
+      radius: 20,
+      backgroundColor: Colors.orange.shade100,
+      child: Icon(icon, color: Colors.green),
+    ),
+    title: Text(label),
+    trailing: const Icon(Icons.chevron_right, color: Colors.green),
+    onTap: onTap,
+  );
+
+  Widget _errorLayout() => Scaffold(
+    body: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Gagal memuat profil'),
+          const SizedBox(height: 12),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.refresh),
+            label: const Text('Coba lagi'),
+            onPressed: () {
+              setState(() {
+                _futureProfile = _fetchProfile();
+              });
+            },
+          ),
+        ],
+      ),
+    ),
+  );
 }

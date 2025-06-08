@@ -1,56 +1,80 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+
+import '../../../data/api_service.dart';
+import '../../bloc/auth/auth_bloc.dart';
+import '../../bloc/auth/auth_event.dart';
 
 class PatientInfoPage extends StatefulWidget {
   const PatientInfoPage({super.key});
-
   @override
   State<PatientInfoPage> createState() => _PatientInfoPageState();
 }
 
 class _PatientInfoPageState extends State<PatientInfoPage> {
-  /* ── controller & state ──────────────────────────────────────── */
-  final _formKey     = GlobalKey<FormState>();
-  final _fullNameC   = TextEditingController();
-  final _birthPlaceC = TextEditingController();
-  final _addressC    = TextEditingController();
-  final _companionC  = TextEditingController();
-  final _gender      = ValueNotifier<String>('Laki-laki');
-
-  DateTime? _birthDate;
+  final _formKey = GlobalKey<FormState>();
+  final _fullC   = TextEditingController();
+  final _placeC  = TextEditingController();
+  final _addrC   = TextEditingController();
+  final _compC   = TextEditingController();
+  final _gender  = ValueNotifier('Laki-laki');
+  DateTime? _dob;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    FirebaseFirestore.instance.collection('users').doc(uid).get().then((d) {
-      final m            = d.data()!;
-      _fullNameC.text    = m['fullName']   ?? '';
-      _birthPlaceC.text  = m['birthPlace'] ?? '';
-      _addressC.text     = m['address']    ?? '';
-      _companionC.text   = m['companionName'] ?? '';
-      _gender.value      = ['Laki-laki','Perempuan'].contains(m['gender'])
-          ? m['gender']
-          : 'Laki-laki';
-      final ts           = m['birthDate'];
-      if (ts != null) _birthDate = (ts as Timestamp).toDate();
-      setState(() {});
-    });
+    _load();
+  }
+
+  Future<void> _load() async {
+    final res = await ApiService.dio.get('/api/patient/profile');
+    final m   = res.data as Map<String, dynamic>;
+
+    _fullC.text   = m['nama_lengkap']    ?? '';
+    _placeC.text  = m['tempat_lahir']    ?? '';
+    _addrC.text   = m['alamat']          ?? '';
+    _compC.text   = m['nama_pendamping'] ?? '';
+    _gender.value = m['jenis_kelamin']   ?? 'Laki-laki';
+    final tgl     = m['tanggal_lahir'];
+    if (tgl != null && tgl.toString().isNotEmpty) {
+      _dob = DateTime.parse(tgl);
+    }
+
+    setState(() {});
+    _maybeAskToFill();
+  }
+
+  void _maybeAskToFill() {
+    if (_fullC.text.isEmpty && _dob == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Lengkapi Data'),
+            content: const Text(
+                'Silakan isi informasi pasien terlebih dahulu.'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK')),
+            ],
+          ),
+        );
+      });
+    }
   }
 
   @override
   void dispose() {
-    _fullNameC.dispose();
-    _birthPlaceC.dispose();
-    _addressC.dispose();
-    _companionC.dispose();
+    _fullC.dispose();
+    _placeC.dispose();
+    _addrC.dispose();
+    _compC.dispose();
     super.dispose();
   }
 
-  /* ── UI ───────────────────────────────────────────────────────── */
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Informasi Pasien')),
@@ -58,44 +82,46 @@ class _PatientInfoPageState extends State<PatientInfoPage> {
       padding: const EdgeInsets.all(24),
       child: Form(
         key: _formKey,
-        child: ListView(children: [
-          _field(_fullNameC, 'Nama Lengkap'),
-          const SizedBox(height: 16),
-          _dropdown('Jenis Kelamin', _gender, ['Laki-laki', 'Perempuan']),
-          const SizedBox(height: 16),
-          _dateField(),
-          const SizedBox(height: 16),
-          _field(_birthPlaceC, 'Tempat Lahir'),
-          const SizedBox(height: 16),
-          _field(_addressC, 'Alamat', lines: 2),
-          const SizedBox(height: 16),
-          _field(_companionC, 'Nama Pendamping'),
-          const SizedBox(height: 32),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Kembali'),
+        child: ListView(
+          children: [
+            _field(_fullC, 'Nama Lengkap'),
+            const SizedBox(height: 16),
+            _dropdown('Jenis Kelamin', _gender,
+                ['Laki-laki', 'Perempuan']),
+            const SizedBox(height: 16),
+            _dateField(),
+            const SizedBox(height: 16),
+            _field(_placeC, 'Tempat Lahir'),
+            const SizedBox(height: 16),
+            _field(_addrC, 'Alamat', lines: 2),
+            const SizedBox(height: 16),
+            _field(_compC, 'Nama Pendamping'),
+            const SizedBox(height: 32),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Kembali'),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _saving ? null : _save,
-                  child: _saving
-                      ? const CircularProgressIndicator()
-                      : const Text('Simpan'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _saving ? null : _save,
+                    child: _saving
+                        ? const CircularProgressIndicator()
+                        : const Text('Simpan'),
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ]),
+              ],
+            ),
+          ],
+        ),
       ),
     ),
   );
 
-  /* ── helper widget & logic ───────────────────────────────────── */
   Widget _field(TextEditingController c, String l,
       {int lines = 1, TextInputType? kb}) =>
       TextFormField(
@@ -108,11 +134,10 @@ class _PatientInfoPageState extends State<PatientInfoPage> {
       );
 
   Widget _dropdown(String l, ValueNotifier<String> vn, List<String> items) =>
-      ValueListenableBuilder<String>(
+      ValueListenableBuilder(
         valueListenable: vn,
         builder: (_, val, __) => DropdownButtonFormField<String>(
           value: items.contains(val) ? val : null,
-          hint : const Text('Pilih'),
           decoration: InputDecoration(labelText: l),
           items: items
               .map((e) => DropdownMenuItem(value: e, child: Text(e)))
@@ -126,19 +151,18 @@ class _PatientInfoPageState extends State<PatientInfoPage> {
       final now = DateTime.now();
       final picked = await showDatePicker(
         context: context,
-        initialDate:
-        _birthDate ?? now.subtract(const Duration(days: 7000)),
+        initialDate: _dob ?? DateTime(now.year - 17),
         firstDate: DateTime(1900),
         lastDate: now,
       );
-      if (picked != null) setState(() => _birthDate = picked);
+      if (picked != null) setState(() => _dob = picked);
     },
     child: InputDecorator(
       decoration: const InputDecoration(labelText: 'Tanggal Lahir'),
       child: Text(
-        _birthDate == null
+        _dob == null
             ? 'Pilih tanggal'
-            : DateFormat('d MMMM y', 'id').format(_birthDate!),
+            : DateFormat('d MMMM y', 'id').format(_dob!),
       ),
     ),
   );
@@ -147,16 +171,17 @@ class _PatientInfoPageState extends State<PatientInfoPage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
 
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    await FirebaseFirestore.instance.collection('users').doc(uid).update({
-      'fullName'     : _fullNameC.text.trim(),
-      'gender'       : _gender.value,
-      'birthDate'    : _birthDate,
-      'birthPlace'   : _birthPlaceC.text.trim(),
-      'address'      : _addressC.text.trim(),
-      'companionName': _companionC.text.trim(),
-    });
+    context.read<AuthBloc>().add(UpdateProfileRequested({
+      'nama_lengkap'   : _fullC.text.trim(),
+      'jenis_kelamin'  : _gender.value,
+      'tanggal_lahir'  : _dob?.toIso8601String(),
+      'tempat_lahir'   : _placeC.text.trim(),
+      'alamat'         : _addrC.text.trim(),
+      'nama_pendamping': _compC.text.trim(),
+    }));
 
+    await context.read<AuthBloc>().stream
+        .firstWhere((s) => s is! AuthLoading);
     if (mounted) Navigator.pop(context);
   }
 }

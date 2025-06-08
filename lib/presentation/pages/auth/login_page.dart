@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/auth/auth_event.dart';
-import '../../bloc/auth/auth_state.dart';
 import '../../widgets/common.dart';
 
 class LoginPage extends StatefulWidget {
@@ -77,7 +76,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Wajib diisi';
-                    if (v.length < 6) return 'Min. 6 karakter';
+                    if (v.length < 8) return 'Min. 8 karakter';
                     return null;
                   },
                 ),
