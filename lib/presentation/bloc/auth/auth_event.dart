@@ -6,7 +6,7 @@ sealed class AuthEvent extends Equatable {
 }
 
 final class SignInRequested extends AuthEvent {
-  final String identifier, password; // identifier = email / username
+  final String identifier, password;
   SignInRequested(this.identifier, this.password);
 }
 
@@ -23,7 +23,6 @@ final class SignUpRequested extends AuthEvent {
 
 final class SignOutRequested extends AuthEvent {}
 
-/// update sebagian / seluruh field profil
 final class UpdateProfileRequested extends AuthEvent {
   final Map<String, dynamic> data;
   UpdateProfileRequested(this.data);

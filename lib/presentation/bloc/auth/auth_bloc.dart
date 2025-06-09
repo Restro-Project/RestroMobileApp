@@ -5,39 +5,36 @@ import 'package:equatable/equatable.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../data/api_service.dart';
 import 'auth_event.dart';
-
 part 'auth_state.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc() : super(AuthInitial()) {
-    _bootstrap();                       // cek token lokal dulu
+    _bootstrap();                       // baca token lokal
 
-    /* ---------- LOGIN ---------- */
     on<SignInRequested>(_onLogin);
-
-    /* ---------- REGISTER ---------- */
     on<SignUpRequested>(_onRegister);
-
-    /* ---------- LOGOUT ---------- */
     on<SignOutRequested>(_onLogout);
-
-    /* ---------- UPDATE PROFILE ---------- */
     on<UpdateProfileRequested>(_onUpdateProfile);
   }
 
-  /* ------------ in-memory token ------------- */
-  String? _token;            // null = belum login
+  /* -------- in-memory token ---------- */
+  String? _token;
   bool get isLoggedIn => _token != null;
 
-  /* ------------ boot : baca token di SharedPreferences ------------ */
+  /* -------- cek token di SharedPreferences ---------- */
   Future<void> _bootstrap() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('token');
-    if (_token != null) emit(AuthSuccess());      // langsung anggap login
+    if (_token != null) add(SignInRequested('', '')); // trigger AuthSuccess
   }
 
-  /* ------------ handler ------------ */
-  Future<void> _onLogin(SignInRequested e, Emitter<AuthState> emit) async {
+  /* -------- LOGIN ---------- */
+  Future<void> _onLogin(
+      SignInRequested e, Emitter<AuthState> emit) async {
+    if (e.identifier.isEmpty && _token != null) {      // bootstrap mode
+      emit(AuthSuccess());
+      return;
+    }
     emit(AuthLoading());
     try {
       final res = await ApiService.dio.post('/auth/pasien/login', data: {
@@ -55,6 +52,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
+  /* -------- REGISTER ---------- */
   Future<void> _onRegister(
       SignUpRequested e, Emitter<AuthState> emit) async {
     emit(AuthLoading());
@@ -66,13 +64,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         'password'     : e.password,
         'nomor_telepon': e.phone,
       });
-
       add(SignInRequested(e.email, e.password));   // auto login
     } catch (err) {
       emit(AuthFailure(_msg(err)));
     }
   }
 
+  /* -------- LOGOUT ---------- */
   Future<void> _onLogout(
       SignOutRequested e, Emitter<AuthState> emit) async {
     try {
@@ -84,6 +82,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(AuthInitial());
   }
 
+  /* -------- UPDATE PROFILE ---------- */
   Future<void> _onUpdateProfile(
       UpdateProfileRequested e, Emitter<AuthState> emit) async {
     emit(AuthLoading());
@@ -95,7 +94,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  /* ------------ helper pesan error ------------ */
+  /* -------- helper pesan error ---------- */
   String _msg(Object err) {
     if (err is DioException) {
       final data = err.response?.data;

@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:camera/camera.dart'; // Import camera package
 import 'calendar_page.dart';
-import 'detect_page.dart';
+import 'exercise_selection_page.dart'; // Import ExerciseSelectionPage
 import 'chat_page.dart';
 import 'profile_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final List<CameraDescription> cameras; // Add cameras parameter
+
+  const HomePage({super.key, required this.cameras}); // Constructor
+
   @override
   State<HomePage> createState() => _HomePageState();
 }
@@ -13,13 +17,20 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _idx = 0;
 
-  final _pages = const [
-    _Dashboard(),
-    CalendarPage(),
-    DetectPage(),
-    ChatPage(),
-    ProfilePage(),
-  ];
+  // Lazily initialize _pages to use widget.cameras
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      const _Dashboard(),
+      const CalendarPage(),
+      ExerciseSelectionPage(cameras: widget.cameras), // Use ExerciseSelectionPage here
+      const ChatPage(),
+      const ProfilePage(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +67,9 @@ class _Dashboard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Image.asset('assets/logo_homepage.png', height: 32),
+                // Pastikan path gambar logo_homepage.png sudah benar
+                // Jika logo_homepage.png ada di folder assets, pastikan pubspec.yaml sudah menyertakan assets/
+                Image.asset('assets/logo.png', height: 32),
                 const Icon(Icons.notifications_none),
               ],
             ),
@@ -88,7 +101,11 @@ class _Dashboard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {},
+                onPressed: () {
+                  // Anda bisa menambahkan navigasi ke ExerciseSelectionPage di sini
+                  // jika ingin tombol ini mengarahkan ke halaman deteksi
+                  // Atau biarkan kosong jika "Lanjutkan Program" memiliki makna lain
+                },
                 child: const Text('Lanjutkan Program'),
               ),
             ),
@@ -98,8 +115,11 @@ class _Dashboard extends StatelessWidget {
               leading: const Icon(Icons.restaurant),
               tileColor: Colors.orange.shade50,
               title: const Text('Pola Makan'),
-              onTap: () {},
+              onTap: () {
+                // Handle tap for Pola Makan
+              },
             ),
+            // Tambahkan bagian lainnya dari homepage Anda di sini
           ],
         ),
       ),

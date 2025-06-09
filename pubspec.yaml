@@ -12,9 +12,6 @@ dependencies:
   flutter:
     sdk: flutter
 
-  firebase_core: ^3.13.1
-  firebase_auth: ^5.5.4
-  cloud_firestore: ^5.6.8
   shared_preferences: ^2.5.3
   flutter_launcher_icons: ^0.13.1
   camera: ^0.11.1
@@ -30,6 +27,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   tflite_flutter: ^0.11.0
   permission_handler: ^11.3.1
+  google_mlkit_pose_detection: ^0.11.0
+  google_mlkit_commons: ^0.7.0
+  json_annotation: ^4.8.1
 
 dev_dependencies:
   flutter_test:
@@ -49,5 +49,6 @@ flutter:
     - assets/
     - assets/models/
     - assets/models/cnn.tflite
+    - assets/models/cnn_best.tflite
     - assets/actions.txt
     - assets/scaler.json
