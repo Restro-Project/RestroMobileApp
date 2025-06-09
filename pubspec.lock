@@ -198,6 +198,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_azure_tts:
+    dependency: "direct main"
+    description:
+      name: flutter_azure_tts
+      sha256: "10306f4cbefd217283ebf331731b7801abe6b26dc48fe1ea03eeba4382f3cfcf"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.3"
   flutter_bloc:
     dependency: "direct main"
     description:
