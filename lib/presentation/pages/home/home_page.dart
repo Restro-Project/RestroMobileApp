@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart'; // Import camera package
-import 'calendar_page.dart';
-import 'exercise_selection_page.dart'; // Import ExerciseSelectionPage
-import 'chat_page.dart';
+import '../calendar/calendar_page.dart';
+import '../detect/exercise_selection_page.dart'; // Import ExerciseSelectionPage
+import '../chat/chat_page.dart';
 import 'profile_page.dart';
 import 'all_movements_page.dart'; // Import the new page
 import 'program_history_page.dart'; // Import the new page

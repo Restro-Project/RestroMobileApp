@@ -163,7 +163,7 @@ class _PatientInfoPageState extends State<PatientInfoPage> {
     context.read<AuthBloc>().add(UpdateProfileRequested({
       'nama_lengkap': _fullC.text.trim(),
       'jenis_kelamin': _gender.value,
-      'tanggal_lahir': _dob?.toIso8601String(),
+      'tanggal_lahir'  : _dob != null ? DateFormat('yyyy-MM-dd').format(_dob!) : null,
       'tempat_lahir': _placeC.text.trim(),
       'alamat': _addrC.text.trim(),
       'nama_pendamping': _compC.text.trim(),
