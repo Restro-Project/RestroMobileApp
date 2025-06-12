@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 
-/// Melukis 33 landmark + beberapa sambungan tulang.
 class PosePainter extends CustomPainter {
   const PosePainter({
     required this.poses,
     required this.imageSize,
     required this.isFrontCamera,
+    this.hideLegs = false,
   });
 
   final List<Pose> poses;
-  final Size imageSize;          // frame RAW (setelah rotasi tegak)
-  final bool isFrontCamera;      // mirror X utk kamera depan
+  final Size imageSize;
+  final bool isFrontCamera;
+  final bool hideLegs;
+
+  // indeks landmark kaki (23–32)
+  bool _isLeg(int idx) => idx >= 23;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -25,28 +29,30 @@ class PosePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
-    for (final pose in poses) {
-      // titik
-      for (final lm in pose.landmarks.values) {
+    for (final p in poses) {
+      for (final lm in p.landmarks.values) {
+        if (hideLegs && _isLeg(lm.type.index)) continue;
         canvas.drawCircle(_map(lm, size), 4, joint);
       }
-      // contoh sambungan
-      _link(canvas, pose, size, bone,
-          PoseLandmarkType.leftShoulder, PoseLandmarkType.leftElbow);
-      _link(canvas, pose, size, bone,
-          PoseLandmarkType.leftElbow, PoseLandmarkType.leftWrist);
-      _link(canvas, pose, size, bone,
-          PoseLandmarkType.rightShoulder, PoseLandmarkType.rightElbow);
-      _link(canvas, pose, size, bone,
-          PoseLandmarkType.rightElbow, PoseLandmarkType.rightWrist);
-      _link(canvas, pose, size, bone,
-          PoseLandmarkType.leftHip, PoseLandmarkType.leftKnee);
-      _link(canvas, pose, size, bone,
-          PoseLandmarkType.leftKnee, PoseLandmarkType.leftAnkle);
-      _link(canvas, pose, size, bone,
-          PoseLandmarkType.rightHip, PoseLandmarkType.rightKnee);
-      _link(canvas, pose, size, bone,
-          PoseLandmarkType.rightKnee, PoseLandmarkType.rightAnkle);
+
+      void link(PoseLandmarkType a, PoseLandmarkType b) {
+        if (hideLegs && (_isLeg(a.index) || _isLeg(b.index))) return;
+        final la = p.landmarks[a], lb = p.landmarks[b];
+        if (la == null || lb == null) return;
+        canvas.drawLine(_map(la, size), _map(lb, size), bone);
+      }
+
+      // lengan
+      link(PoseLandmarkType.leftShoulder , PoseLandmarkType.leftElbow);
+      link(PoseLandmarkType.leftElbow    , PoseLandmarkType.leftWrist);
+      link(PoseLandmarkType.rightShoulder, PoseLandmarkType.rightElbow);
+      link(PoseLandmarkType.rightElbow   , PoseLandmarkType.rightWrist);
+
+      // kaki (digambar hanya jika hideLegs==false)
+      link(PoseLandmarkType.leftHip , PoseLandmarkType.leftKnee);
+      link(PoseLandmarkType.leftKnee, PoseLandmarkType.leftAnkle);
+      link(PoseLandmarkType.rightHip, PoseLandmarkType.rightKnee);
+      link(PoseLandmarkType.rightKnee, PoseLandmarkType.rightAnkle);
     }
   }
 
@@ -57,20 +63,7 @@ class PosePainter extends CustomPainter {
     return Offset(nx * canvas.width, ny * canvas.height);
   }
 
-  void _link(
-      Canvas c,
-      Pose p,
-      Size s,
-      Paint paint,
-      PoseLandmarkType a,
-      PoseLandmarkType b,
-      ) {
-    final la = p.landmarks[a];
-    final lb = p.landmarks[b];
-    if (la == null || lb == null) return;
-    c.drawLine(_map(la, s), _map(lb, s), paint);
-  }
-
   @override
-  bool shouldRepaint(covariant PosePainter oldDelegate) => true;
+  bool shouldRepaint(covariant PosePainter old) =>
+      old.hideLegs != hideLegs || old.poses != poses;
 }

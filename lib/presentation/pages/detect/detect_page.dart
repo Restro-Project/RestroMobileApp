@@ -17,7 +17,7 @@ class DetectPage extends StatefulWidget {
   const DetectPage({
     super.key,
     required this.cameras,
-    required this.plannedExercises,   // [{actionName, targetReps}]
+    required this.plannedExercises,   // [{actionName,targetReps}]
     required this.maxDurationPerRep,  // detik
   });
 
@@ -30,50 +30,59 @@ class DetectPage extends StatefulWidget {
 }
 
 class _DetectPageState extends State<DetectPage> {
-  // ═════════════ Hyper-parameter model ═════════════
+  // ═══════════ hyper-parameter ═══════════
   static const int    _seqLen   = 60;
   static const int    _numFeat  = 33 * 2;
   static const double _needConf = .80;
   static const double _holdSec  = 2.0;
   static const int    _prepSec  = 3;
-  static const double _visTh    = .40;
+  static const double _thVis    = .35;
 
-  // ═════════════ Kamera & Pose ═════════════
-  CameraController?   _cam;
-  PoseDetector?       _pose;
-  InputImageRotation  _rotation = InputImageRotation.rotation0deg;
-  Size?               _rawSize;
-  int                 _camIdx = 0;
+  /// gerakan yang hanya butuh badan-atas ⇒ landmark kaki dimask
+  final Set<String> _upperBodyOnly = {
+    'Rentangkan',
+    'Naikan Kepalan Kedepan',
+    'Angkat Tangan',
+  };
+
+  // ═══════════ kamera & pose ═══════════
+  CameraController? _cam;
+  PoseDetector?     _pose;
+  InputImageRotation _rotation = InputImageRotation.rotation0deg;
+  Size? _rawSize;
+  int  _camIdx = 0;
   bool get _isFront =>
       widget.cameras[_camIdx].lensDirection == CameraLensDirection.front;
 
-  // ═════════════ TFLite ═════════════
+  // ═══════════ TFLite ═══════════
   late Interpreter   _intrp;
   late List<double>  _mean, _scale;
   late List<String>  _actions;
   final _seq = Queue<Float32List>();
 
-  // ═════════════ State sesi ═════════════
+  // ═══════════ sesi latihan ═══════════
   final _summary = <ExercisePerformance>[];
   int _exIdx = 0;
   ExercisePerformance? _ex;
   int    _attempt = 1;
 
-  double? _prepEnd;          // null bila tidak countdown
-  double  _repStart = 0;
+  double? _prepEnd;                 // selesai countdown
+  double  _repStart = 0;            // mulai timer repetisi
+  double  _now      = 0;            // waktu “sekarang” (di-update oleh _ticker)
   double? _perfectStart;
-  bool    _repDone = false;
+  bool    _repDone  = false;
+  bool    _maskLeg  = false;
 
   String _quality = 'Tidak Terdeteksi';
   String _instr   = 'Bersiap…';
   String _pred    = '…';
 
-  // ═════════════ UI helper ═════════════
+  // ═══════════ UI helper ═══════════
   CustomPaint? _overlay;
   Timer? _ticker;
   bool _busy = false, _assetsReady = false;
 
-  // ═════════════ lifecycle ═════════════
+  // ───────────────── lifecycle ─────────────────
   @override
   void initState() {
     super.initState();
@@ -85,7 +94,7 @@ class _DetectPageState extends State<DetectPage> {
 
     _pose = PoseDetector(
       options: PoseDetectorOptions(
-        model: PoseDetectionModel.base,
+        model: PoseDetectionModel.accurate,
         mode : PoseDetectionMode.stream,
       ),
     );
@@ -94,15 +103,15 @@ class _DetectPageState extends State<DetectPage> {
     _startExercise();
 
     _ticker = Timer.periodic(
-      const Duration(milliseconds: 100),
-          (_) => mounted ? setState(() {}) : null,
+      const Duration(milliseconds: 80),
+          (_) => setState(() => _now = DateTime.now().millisecondsSinceEpoch / 1000),
     );
   }
 
-  // ─────────────────── Camera ───────────────────
+  // ─────────── camera ───────────
   Future<void> _initCamera() async {
     if (widget.cameras.isEmpty) {
-      _showErr('Tidak ada kamera.'); return;
+      _showErr('Tidak ada kamera'); return;
     }
     _camIdx %= widget.cameras.length;
     final desc = widget.cameras[_camIdx];
@@ -134,12 +143,13 @@ class _DetectPageState extends State<DetectPage> {
     await _initCamera();
   }
 
-  // ─────────────────── Assets ───────────────────
+  // ─────────── assets ───────────
   Future<void> _loadAssets() async {
     _intrp = await Interpreter.fromAsset(
       'assets/models/cnn_best.tflite',
       options: InterpreterOptions()..threads = 4,
     );
+
     _actions = (await rootBundle.loadString('assets/actions.txt'))
         .split('\n').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
 
@@ -150,7 +160,7 @@ class _DetectPageState extends State<DetectPage> {
     setState(() => _assetsReady = true);
   }
 
-  // ─────────────────── Flow latihan ───────────────────
+  // ─────────── sesi latihan ───────────
   void _startExercise() {
     if (_exIdx >= widget.plannedExercises.length) { _finish(); return; }
 
@@ -159,22 +169,24 @@ class _DetectPageState extends State<DetectPage> {
       actionName: plan['actionName'],
       targetReps: plan['targetReps'],
     );
+    _maskLeg = _upperBodyOnly.contains(_ex!.actionName);
     _attempt = 1;
-    _resetRep();
+    _resetRep(clearSeq: true);
   }
 
-  void _resetRep() {
-    _seq.clear();                       // CLEAR BUFFER TIAP REP
-    _prepEnd  = _attempt == 1 ? _now + _prepSec : null;
-    _repStart = (_prepEnd ?? _now);
+  void _resetRep({bool clearSeq = false}) {
+    if (clearSeq) _seq.clear();
+
+    _now = DateTime.now().millisecondsSinceEpoch / 1000;
+
+    _prepEnd      = _attempt == 1 ? _now + _prepSec : null;
+    _repStart     = (_prepEnd ?? _now);               // timer mulai setelah countdown
     _perfectStart = null;
     _repDone      = false;
     _quality      = 'Tidak Terdeteksi';
     _instr        = _attempt == 1 ? 'Bersiap…' : 'Ikuti gerakan';
     _pred         = '…';
   }
-
-  double get _now => DateTime.now().millisecondsSinceEpoch / 1000;
 
   void _completeRep(String type) {
     if (_repDone) return;
@@ -188,7 +200,7 @@ class _DetectPageState extends State<DetectPage> {
       if (!mounted) return;
       if (_ex!.completedReps + _ex!.failedAttempts < _ex!.targetReps) {
         _attempt++;
-        _resetRep();
+        _resetRep();                        // countdown hilang di percobaan berikut
       } else {
         _summary.add(_ex!);
         _exIdx++;
@@ -197,7 +209,7 @@ class _DetectPageState extends State<DetectPage> {
     });
   }
 
-  // ─────────────────── Frame loop ───────────────────
+  // ─────────── frame loop ───────────
   Future<void> _onFrame(CameraImage img) async {
     if (_busy || !_assetsReady) return;
     _busy = true;
@@ -224,57 +236,72 @@ class _DetectPageState extends State<DetectPage> {
           ? Size(img.height.toDouble(), img.width.toDouble())
           : Size(img.width.toDouble(),  img.height.toDouble());
 
-      // add to sequence
-      if (poses.isNotEmpty && poses.first.landmarks.length == 33) {
-        _seq.add(_vecFromPose(poses.first));
-      } else {
-        _seq.add(Float32List(_numFeat));
-      }
+      // update buffer
+      _seq.add(
+        poses.isNotEmpty && poses.first.landmarks.length == 33
+            ? _vecFromPose(poses.first)
+            : Float32List(_numFeat),
+      );
       if (_seq.length > _seqLen) _seq.removeFirst();
 
-      final countdownDone = _prepEnd == null || _now >= _prepEnd!;
-      if (_seq.length == _seqLen && countdownDone) _runModel();
+      final ready = (_prepEnd == null || _now >= _prepEnd!) &&
+          _seq.length == _seqLen;
+      if (ready) _runModel();
 
-      if (_prepEnd != null && countdownDone && _instr.startsWith('Bersiap')) {
+      if (_prepEnd != null && _now >= _prepEnd! && _instr.startsWith('Bersi')) {
         _instr = 'Ikuti gerakan';
       }
 
-      setState(() => _overlay = poses.isEmpty
+      _overlay = poses.isEmpty
           ? null
           : CustomPaint(
         painter: PosePainter(
           poses: poses,
           imageSize: _rawSize!,
           isFrontCamera: _isFront,
+          hideLegs: _maskLeg,
         ),
-      ));
+      );
+      setState(() {});
     } finally {
       _busy = false;
     }
   }
 
-  // ─────────────────── Landmark → vektor ───────────────────
+  // ─────────── landmark → fitur ───────────
   Float32List _vecFromPose(Pose pose) {
     final lms = pose.landmarks.values.toList()
       ..sort((a, b) => a.type.index.compareTo(b.type.index));
 
     final v = Float32List(_numFeat);
     final mirror = _isFront;
+
     for (int i = 0; i < 33; i++) {
-      if (lms[i].likelihood < _visTh) {
-        v[i * 2] = v[i * 2 + 1] = 0;
+      // indeks dalam vektor rata (untuk meng-akses _mean)
+      final ixX = i * 2, ixY = i * 2 + 1;
+
+      final bool legPart  = i >= 23;
+      final bool masked   = _maskLeg && legPart;
+      final bool invisible = lms[i].likelihood < _thVis;
+
+      if (masked || invisible) {
+        // gunakan nilai mean asli supaya (x-µ)/σ = 0 sesudah normalisasi
+        v[ixX] = _mean[ixX];
+        v[ixY] = _mean[ixY];
         continue;
       }
+
       double nx = lms[i].x / _rawSize!.width;
       double ny = lms[i].y / _rawSize!.height;
       if (mirror) nx = 1 - nx;
-      v[i * 2]     = nx;
-      v[i * 2 + 1] = ny;
+
+      v[ixX] = nx;
+      v[ixY] = ny;
     }
     return v;
   }
 
-  // ─────────────────── Inference ───────────────────
+  // ─────────── inference ───────────
   void _runModel() {
     final flat = Float32List(_seqLen * _numFeat);
     int k = 0;
@@ -305,24 +332,23 @@ class _DetectPageState extends State<DetectPage> {
         _repDone ||
         (_prepEnd != null && _now < _prepEnd!)) return;
 
-    final now = _now;
     if (_pred == _ex!.actionName && conf >= _needConf) {
       _quality = 'Sempurna';
       _instr   = 'TAHAN!';
-      _perfectStart ??= now;
-      if (now - _perfectStart! >= _holdSec) _completeRep('Sempurna');
+      _perfectStart ??= _now;
+      if (_now - _perfectStart! >= _holdSec) _completeRep('Sempurna');
     } else {
       _quality = 'Belum Tepat';
       _instr   = 'Ikuti gerakan';
       _perfectStart = null;
     }
 
-    if (now - _repStart > widget.maxDurationPerRep) {
+    if (_now - _repStart > widget.maxDurationPerRep) {
       _completeRep('Waktu Habis');
     }
   }
 
-  // ─────────────────── UI ───────────────────
+  // ─────────── UI ───────────
   @override
   Widget build(BuildContext context) {
     if (_cam == null || !_cam!.value.isInitialized || !_assetsReady) {
@@ -331,7 +357,7 @@ class _DetectPageState extends State<DetectPage> {
 
     final ex     = _ex!;
     final inPrep = _prepEnd != null && _now < _prepEnd!;
-    final prog   = inPrep
+    final double prog = inPrep
         ? 0.0
         : math.min(1.0, (_now - _repStart) / widget.maxDurationPerRep);
 
@@ -340,8 +366,7 @@ class _DetectPageState extends State<DetectPage> {
         title: const Text('Deteksi Gerakan'),
         actions: [
           if (widget.cameras.length > 1)
-            IconButton(
-                icon: const Icon(Icons.cameraswitch), onPressed: _switchCam),
+            IconButton(icon: const Icon(Icons.cameraswitch), onPressed: _switchCam),
         ],
       ),
       body: Stack(
@@ -349,14 +374,13 @@ class _DetectPageState extends State<DetectPage> {
         children: [
           CameraPreview(_cam!),
           if (_overlay != null) _overlay!,
-          _bottomOverlay(ex, prog, inPrep),
+          _bottom(ex, prog, inPrep),
         ],
       ),
     );
   }
 
-  Widget _bottomOverlay(ExercisePerformance ex,
-      double prog, bool inPrep) => Align(
+  Widget _bottom(ExercisePerformance ex, double prog, bool inPrep) => Align(
     alignment: Alignment.bottomCenter,
     child: Container(
       padding: const EdgeInsets.all(16),
@@ -366,8 +390,7 @@ class _DetectPageState extends State<DetectPage> {
         children: [
           Text('Gerakan: ${ex.actionName}',
               style: const TextStyle(color: Colors.white, fontSize: 20)),
-          Text('Repetisi: ${ex.completedReps}/${ex.targetReps} '
-              '(Percobaan: $_attempt)',
+          Text('Repetisi: ${ex.completedReps}/${ex.targetReps} (Percobaan: $_attempt)',
               style: const TextStyle(color: Colors.white, fontSize: 16)),
           const SizedBox(height: 6),
           if (inPrep) ...[
@@ -376,12 +399,10 @@ class _DetectPageState extends State<DetectPage> {
           ] else ...[
             Text('Kualitas: $_quality',
                 style: TextStyle(
-                  color: _quality == 'Sempurna'
-                      ? Colors.greenAccent
-                      : Colors.orangeAccent,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                )),
+                    color: _quality == 'Sempurna'
+                        ? Colors.greenAccent
+                        : Colors.orangeAccent,
+                    fontWeight: FontWeight.bold, fontSize: 18)),
             const SizedBox(height: 4),
             Text('Instruksi: $_instr',
                 style: const TextStyle(color: Colors.white, fontSize: 16)),
@@ -390,12 +411,11 @@ class _DetectPageState extends State<DetectPage> {
           ],
           if (!_repDone && !inPrep)
             Padding(
-              padding: const EdgeInsets.only(top: 6.0),
+              padding: const EdgeInsets.only(top: 6),
               child: LinearProgressIndicator(
                 value: prog,
                 backgroundColor: Colors.grey.shade700,
-                valueColor:
-                const AlwaysStoppedAnimation<Color>(Colors.yellow),
+                valueColor: const AlwaysStoppedAnimation<Color>(Colors.yellow),
               ),
             ),
         ],
@@ -403,7 +423,7 @@ class _DetectPageState extends State<DetectPage> {
     ),
   );
 
-  // ─────────────────── util & dispose ───────────────────
+  // ───────── util ─────────
   void _showErr(String m) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
@@ -416,16 +436,12 @@ class _DetectPageState extends State<DetectPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: _summary
-              .map((e) => Text(
-              '${e.actionName}: '
-                  '${e.completedReps} berhasil / '
-                  '${e.failedAttempts} gagal'))
+              .map((e) => Text('${e.actionName}: ${e.completedReps} ok / ${e.failedAttempts} gagal'))
               .toList(),
         ),
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.of(context).popUntil((r) => r.isFirst),
+            onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
             child: const Text('OK'),
           ),
         ],

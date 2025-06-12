@@ -13,7 +13,6 @@ import 'presentation/pages/splash_page.dart';
 import 'presentation/pages/profile/account_info_page.dart';
 import 'presentation/pages/profile/patient_info_page.dart';
 import 'presentation/pages/profile/health_info_page.dart';
-import 'presentation/pages/chat/chat_detail_page.dart';
 
 List<CameraDescription> cameras = []; // Global variable to store available cameras
 

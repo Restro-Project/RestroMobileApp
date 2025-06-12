@@ -198,14 +198,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  flutter_azure_tts:
-    dependency: "direct main"
-    description:
-      name: flutter_azure_tts
-      sha256: "10306f4cbefd217283ebf331731b7801abe6b26dc48fe1ea03eeba4382f3cfcf"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.2.3"
   flutter_bloc:
     dependency: "direct main"
     description:
@@ -697,10 +689,10 @@ packages:
     dependency: transitive
     description:
       name: web
-      sha256: "868d88a33d8a87b18ffc05f9f030ba328ffefba92d6c127917a2ba740f9cfe4a"
+      sha256: "97da13628db363c635202ad97068d47c5b8aa555808e7a9411963c533b449b27"
       url: "https://pub.dev"
     source: hosted
-    version: "1.1.1"
+    version: "0.5.1"
   xdg_directories:
     dependency: transitive
     description:
