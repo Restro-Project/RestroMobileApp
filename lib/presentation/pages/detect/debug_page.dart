@@ -3,16 +3,16 @@ import 'package:camera/camera.dart';
 import 'package:flutter/services.dart';
 import 'detect_page.dart'; // Sesuaikan nama package Anda
 
-class ExerciseSelectionPage extends StatefulWidget {
+class DebugPage extends StatefulWidget {
   final List<CameraDescription> cameras;
 
-  const ExerciseSelectionPage({Key? key, required this.cameras}) : super(key: key);
+  const DebugPage({Key? key, required this.cameras}) : super(key: key);
 
   @override
-  State<ExerciseSelectionPage> createState() => _ExerciseSelectionPageState();
+  State<DebugPage> createState() => _DebugPageState();
 }
 
-class _ExerciseSelectionPageState extends State<ExerciseSelectionPage> {
+class _DebugPageState extends State<DebugPage> {
   List<String> _actions = [];
   List<Map<String, dynamic>> _plannedExercises = []; // {actionName: String, targetReps: int}
   int _maxDuration = 20; // Default max duration per repetition

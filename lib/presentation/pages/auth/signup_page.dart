@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/auth/auth_event.dart';
-import '../../widgets/common.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -12,7 +11,7 @@ class SignUpPage extends StatefulWidget {
 
 class _SignUpPageState extends State<SignUpPage> {
   final _pgr       = PageController();
-  final _formKey1  = GlobalKey<FormState>();
+  final _form  = GlobalKey<FormState>();
 
   final _usernameC = TextEditingController();
   final _fullNameC = TextEditingController();
@@ -33,107 +32,169 @@ class _SignUpPageState extends State<SignUpPage> {
     super.dispose();
   }
 
+  /* ────────── UI ────────── */
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Registrasi')),
+  Widget build(BuildContext context) => WillPopScope(
+      onWillPop: () async {
+        context.go('/login');
+        return false;
+      },
+      child: Scaffold(
     body: BlocConsumer<AuthBloc, AuthState>(
       listener: (c, s) {
         setState(() => _loading = s is AuthLoading);
         if (s is AuthSuccess) {
-          ScaffoldMessenger.of(c).showSnackBar(
-            const SnackBar(content: Text('Registrasi berhasil, silakan login')),
-          );
+          ScaffoldMessenger.of(c).showSnackBar(const SnackBar(
+              content: Text('Registrasi berhasil, silakan login')));
           context.go('/login');
         }
         if (s is AuthFailure) {
-          ScaffoldMessenger.of(c).showSnackBar(SnackBar(content: Text(s.msg)));
+          ScaffoldMessenger.of(c)
+              .showSnackBar(SnackBar(content: Text(s.msg)));
         }
       },
-      builder: (_, __) => AbsorbPointer(
-        absorbing: _loading,
-        child: PageView(
-          controller: _pgr,
-          physics: const NeverScrollableScrollPhysics(),
-          children: [_step1()],
-        ),
+      builder: (_, __) => Stack(
+        children: [
+          Container(height: 100, color: const Color(0xFF2F3026)),
+          Align(
+            alignment: Alignment.topCenter,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(top: 40, bottom: 24),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius:
+                  BorderRadius.vertical(top: Radius.circular(32)),
+                ),
+                child: Form(
+                  key: _form,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Center(
+                        child: Text('Daftar',
+                            style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF2F3026))),
+                      ),
+                      const SizedBox(height: 24),
+                      _field(_usernameC, 'Username'),
+                      const SizedBox(height: 16),
+                      _field(_fullNameC, 'Nama Lengkap'),
+                      const SizedBox(height: 16),
+                      _field(_emailC, 'Email',
+                          kb: TextInputType.emailAddress,
+                          validator: _vEmail),
+                      const SizedBox(height: 16),
+                      _field(_phoneC, 'Nomor Telepon',
+                          kb: TextInputType.phone),
+                      const SizedBox(height: 16),
+                      _field(_passC, 'Password',
+                          obscure: _ob1,
+                          suffix: IconButton(
+                              icon: Icon(
+                                  _ob1 ? Icons.visibility : Icons.visibility_off),
+                              onPressed: () =>
+                                  setState(() => _ob1 = !_ob1)),
+                          validator: _vPass),
+                      const SizedBox(height: 16),
+                      _field(_pass2C, 'Ulangi Password',
+                          obscure: _ob2,
+                          suffix: IconButton(
+                              icon: Icon(
+                                  _ob2 ? Icons.visibility : Icons.visibility_off),
+                              onPressed: () =>
+                                  setState(() => _ob2 = !_ob2)),
+                          validator: (v) =>
+                          v != _passC.text ? 'Password tidak sama' : _vPass(v)),
+                      const SizedBox(height: 32),
+                      _button(
+                        label: 'Daftar',
+                        onTap: _loading
+                            ? null
+                            : () {
+                          if (_form.currentState!.validate()) {
+                            context.read<AuthBloc>().add(
+                              SignUpRequested(
+                                username: _usernameC.text.trim(),
+                                fullName: _fullNameC.text.trim(),
+                                email: _emailC.text.trim(),
+                                password: _passC.text,
+                                phone: _phoneC.text.trim(),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      TextButton(
+                        onPressed: () => context.go('/login'),
+                        child: const Text.rich(TextSpan(children: [
+                          TextSpan(
+                            text: 'Anda sudah memiliki akun?\n',
+                            style: TextStyle(
+                              color: Color(0xFF2F3026), // Warna sama dengan tombol
+                                ),
+                          ),
+                          TextSpan(
+                              text: 'Silahkan Masuk',
+                              style: TextStyle(
+                                  decoration: TextDecoration.underline))
+                        ]), textAlign: TextAlign.center),
+                      )
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (_loading) const Center(child: CircularProgressIndicator()),
+        ],
       ),
     ),
-  );
+  )
+);
 
-  /* ---------------- STEP-1 : akun ---------------- */
-  Widget _step1() => Padding(
-    padding: const EdgeInsets.all(24),
-    child: Form(
-      key: _formKey1,
-      child: ListView(children: [
-        _text(_usernameC, 'Username'),
-        _gap(),
-        _text(_fullNameC, 'Nama Lengkap'),
-        _gap(),
-        _text(_emailC, 'Email', kb: TextInputType.emailAddress, v: _vEmail),
-        _gap(),
-        _text(_phoneC, 'Nomor Telepon', kb: TextInputType.phone),
-        _gap(),
-        _text(_passC, 'Password',
-            obs: _ob1,
-            toggle: () => setState(() => _ob1 = !_ob1),
-            v: _vPass),
-        _gap(),
-        _text(_pass2C, 'Ulangi Password',
-            obs: _ob2,
-            toggle: () => setState(() => _ob2 = !_ob2),
-            v: (v) =>
-            v != _passC.text ? 'Password tidak sama' : _vPass(v)),
-        _gap(32),
-        NeuButton(
-          label: 'Lanjutkan',
-          loading: _loading,
-          onTap: () {
-            if (_formKey1.currentState!.validate()) _pgr.nextPage(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeIn);
-            if (_formKey1.currentState!.validate()) {
-              context.read<AuthBloc>().add(SignUpRequested(
-                // akun
-                email      : _emailC.text.trim(),
-                password   : _passC.text,
-                username   : _usernameC.text.trim(),
-                fullName   : _fullNameC.text.trim(),
-                phone      : _phoneC.text.trim(),
-              ));
-            }
-          },
-        ),
-      ]),
-    ),
-  );
-
-  /* ---------- widget helper ---------- */
-  Widget _text(TextEditingController c, String l,
-      {bool obs = false,
-        VoidCallback? toggle,
-        String? Function(String?)? v,
-        TextInputType? kb,
-        int lines = 1}) =>
+  /* ────────── helper ────────── */
+  Widget _field(TextEditingController c, String l,
+      {bool obscure = false,
+        Widget? suffix,
+        String? Function(String?)? validator,
+        TextInputType? kb}) =>
       TextFormField(
-        controller: c,
-        obscureText: obs,
-        keyboardType: kb,
-        maxLines: lines,
         autovalidateMode: AutovalidateMode.onUserInteraction,
+        controller: c,
+        obscureText: obscure,
+        keyboardType: kb,
+        validator:
+        validator ?? (v) => v == null || v.isEmpty ? 'Wajib diisi' : null,
         decoration: InputDecoration(
           labelText: l,
-          suffixIcon: toggle == null
-              ? null
-              : IconButton(
-            icon: Icon(obs ? Icons.visibility : Icons.visibility_off),
-            onPressed: toggle,
-          ),
+          border:
+          OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
+          contentPadding:
+          const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+          suffixIcon: suffix,
         ),
-        validator: v ?? (v) => v == null || v.isEmpty ? 'Wajib diisi' : null,
       );
 
-  SizedBox _gap([double h = 16]) => SizedBox(height: h);
+  Widget _button({required String label, VoidCallback? onTap}) => SizedBox(
+    height: 56,
+    child: ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF2F3026),
+        foregroundColor: Colors.white,
+        shape:
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      onPressed: onTap,
+      child: Text(label,
+          style:
+          const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+    ),
+  );
 
   String? _vEmail(String? v) {
     if (v == null || v.isEmpty) return 'Wajib diisi';

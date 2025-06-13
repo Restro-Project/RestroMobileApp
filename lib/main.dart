@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:camera/camera.dart'; // Import camera package
+import 'package:camera/camera.dart';
+import 'package:restro/presentation/pages/detect/debug_page.dart';
+import 'package:restro/presentation/pages/detect/program_history_page.dart';
+import 'package:restro/presentation/pages/home/report_history_page.dart';
 import 'presentation/bloc/auth/auth_bloc.dart';
 import 'presentation/pages/auth/login_page.dart';
 import 'presentation/pages/auth/signup_page.dart';
@@ -74,6 +78,9 @@ class MyApp extends StatelessWidget {
         GoRoute(path: '/account-info', builder: (_, __) => const AccountInfoPage()),
         GoRoute(path: '/patient-info', builder: (_, __) => const PatientInfoPage()),
         GoRoute(path: '/health-info',  builder: (_, __) => const HealthInfoPage()),
+        GoRoute(path: '/history', builder: (_, __) => ProgramHistoryPage(cameras: cameras)),
+        GoRoute(path: '/debug', builder: (_, __) => DebugPage(cameras: cameras)),
+        GoRoute(path: '/report-history', builder: (_, __) => const ReportHistoryPage()),
         // GoRoute(
         //   path: '/chat/:cid',
         //   builder: (ctx, state) {
@@ -97,6 +104,15 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         title: 'Restro',
         theme: ThemeData(useMaterial3: false, primarySwatch: Colors.green),
+        localizationsDelegates: [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('en'),
+          Locale('id'),
+        ],
         routerConfig: router,
       ),
     );

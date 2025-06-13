@@ -25,7 +25,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     ('assets/splash_5.png', 'Pola Makan',
     'Rekomendasi makanan pendukung rehabilitasi'),
     ('assets/splash_6.png', 'Mari Kembalikan\nKemampuan Fisik Anda',
-    'NeuReCare App'),
+    'Restro App'),
   ];
 
   @override
@@ -50,7 +50,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
               alignment: Alignment.topRight,
               child: TextButton(
                 onPressed: _finish,
-                child: const Text('Skip'),
+                child: const Text(
+                  'Skip',
+                  style: TextStyle(
+                    color: Color(0xFF2F3026),
+                  ),
+                ),
               ),
             ),
           Expanded(

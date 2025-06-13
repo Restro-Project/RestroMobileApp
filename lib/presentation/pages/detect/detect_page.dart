@@ -5,12 +5,15 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
+import 'package:intl/intl.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 
-import '../home/exercise_performance.dart';
+import '../../../data/api_service.dart';
+import '../../../data/models/exercise_performance.dart';
 import 'pose_painter.dart';
 
 class DetectPage extends StatefulWidget {
@@ -19,11 +22,13 @@ class DetectPage extends StatefulWidget {
     required this.cameras,
     required this.plannedExercises,   // [{actionName,targetReps}]
     required this.maxDurationPerRep,  // detik
+    this.programId,
   });
 
   final List<CameraDescription> cameras;
   final List<Map<String, dynamic>> plannedExercises;
   final int maxDurationPerRep;
+  final int? programId;
 
   @override
   State<DetectPage> createState() => _DetectPageState();
@@ -44,6 +49,10 @@ class _DetectPageState extends State<DetectPage> {
     'Naikan Kepalan Kedepan',
     'Angkat Tangan',
   };
+
+  late final Map<String, int> _motionIdMap =
+  {for (final e in widget.plannedExercises)
+    e['actionName'] as String : (e['gerakanId'] as int?) ?? 0};
 
   // ═══════════ kamera & pose ═══════════
   CameraController? _cam;
@@ -427,26 +436,95 @@ class _DetectPageState extends State<DetectPage> {
   void _showErr(String m) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
-  void _finish() {
+  Future<void> _finish() async {
     _ticker?.cancel();
-    showDialog(
+
+    // ringkasan
+    final sukses = _summary.fold<int>(0, (p, e) => p + e.completedReps);
+    final gagal  = _summary.fold<int>(0, (p, e) => p + e.failedAttempts);
+
+    // dialog tanya
+    final kirim = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Sesi Selesai'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: _summary
-              .map((e) => Text('${e.actionName}: ${e.completedReps} ok / ${e.failedAttempts} gagal'))
-              .toList(),
-        ),
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Latihan selesai'),
+        content: Text('Sempurna  : $sukses\n'
+            'Tidak tepat : $gagal\n\n'
+            'Kirim laporan?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
-            child: const Text('OK'),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Ulangi Lagi'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Kirim'),
           ),
         ],
       ),
     );
+
+    // jika user ingin ulangi
+    if (kirim != true) {
+      _exIdx = 0;
+      _summary.clear();
+      _startExercise();
+      return;
+    }
+
+    // kirim laporan ke server apabila DetectPage dipanggil dari program resmi
+    if (widget.programId != null) {
+      final payload = _serializeSummary(widget.programId!);
+
+      try {
+        await ApiService.submitReport(payload);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Laporan dikirim.')));
+        }
+      } on DioException catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Gagal mengirim laporan')));
+        }
+      }
+    }
+
+    if (mounted) Navigator.pop(context);   // kembali ke halaman sebelumnya
+  }
+
+  Map<String, dynamic> _serializeSummary(int programId) {
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    int   totalDur = 0;
+    final detail   = <Map<String, dynamic>>[];
+
+    for (var i = 0; i < _summary.length; i++) {
+      final s  = _summary[i];
+      final id = _motionIdMap[s.actionName] ?? 0;
+
+      // perkiraan durasi aktual (detik)
+      final dur = (s.completedReps + s.failedAttempts) * widget.maxDurationPerRep;
+      totalDur += dur;
+
+      detail.add({
+        'gerakan_id'                     : id,
+        'urutan_gerakan_dalam_program'   : i + 1,
+        'jumlah_sempurna'                : s.completedReps,
+        'jumlah_tidak_sempurna'          : s.failedAttempts,
+        'jumlah_tidak_terdeteksi'        : 0,
+        'waktu_aktual_per_gerakan_detik' : dur,
+      });
+    }
+
+    return {
+      'program_rehabilitasi_id'        : programId,
+      'tanggal_laporan'                : today,
+      'total_waktu_rehabilitasi_detik' : totalDur,
+      'catatan_pasien_laporan'         : '',
+      'detail_hasil_gerakan'           : detail,
+    };
   }
 
   @override

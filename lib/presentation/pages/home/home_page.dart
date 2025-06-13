@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:camera/camera.dart'; // Import camera package
+import 'package:camera/camera.dart';
+import 'package:restro/presentation/pages/detect/program_history_page.dart';
+import 'package:restro/presentation/pages/home/report_history_page.dart';
 import '../calendar/calendar_page.dart';
-import '../detect/exercise_selection_page.dart'; // Import ExerciseSelectionPage
-import '../chat/chat_page.dart';
-import 'profile_page.dart';
-import 'all_movements_page.dart'; // Import the new page
-import 'program_history_page.dart'; // Import the new page
+import '../profile/profile_page.dart';
+import 'diet_plan_page.dart';
 
 class HomePage extends StatefulWidget {
   final List<CameraDescription> cameras; // Add cameras parameter
@@ -28,8 +27,8 @@ class _HomePageState extends State<HomePage> {
     _pages = [
       _Dashboard(cameras: widget.cameras), // Pass cameras to Dashboard
       const CalendarPage(),
-      ExerciseSelectionPage(cameras: widget.cameras), // Use ExerciseSelectionPage here
-      const ChatPage(),
+      ProgramHistoryPage(cameras: widget.cameras), // Use ExerciseSelectionPage here
+      const DietPlanPage(),
       const ProfilePage(),
     ];
   }
@@ -49,7 +48,7 @@ class _HomePageState extends State<HomePage> {
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.calendar_month), label: 'Kalender'),
           BottomNavigationBarItem(icon: Icon(Icons.sports_gymnastics), label: 'Latihan'),
-          BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Chat'),
+          BottomNavigationBarItem(icon: Icon(Icons.restaurant), label: 'Pola Makan'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
         ],
       ),
@@ -99,7 +98,7 @@ class _Dashboard extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ExerciseSelectionPage(cameras: cameras),
+                      builder: (context) => ProgramHistoryPage(cameras: cameras),
                     ),
                   );
                 },
@@ -121,42 +120,20 @@ class _Dashboard extends StatelessWidget {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const AllMovementsPage()),
+                    MaterialPageRoute(builder: (context) => const ReportHistoryPage()),
                   );
                 },
-                child: const Text('Semua Gerakan'),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom( // Using ElevatedButton.styleFrom directly
-                  backgroundColor: Colors.green.shade100, // Light green background
-                  foregroundColor: Colors.green.shade900, // Dark green text for contrast
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const ProgramHistoryPage()),
-                  );
-                },
-                child: const Text('Riwayat Program'),
+                child: const Text('Riwayat Laporan'),
               ),
             ),
             const SizedBox(height: 16),
 
             ListTile(
-              leading: Icon(Icons.restaurant, color: Colors.green.shade700), // Icon color
-              tileColor: Colors.green.shade50, // Tile background color
-              title: const Text('Pola Makan', style: TextStyle(color: Colors.black)), // Text color explicitly black
-              onTap: () {
-                // Handle tap for Pola Makan
-              },
+              leading: Icon(Icons.restaurant, color: Colors.green.shade700),
+              tileColor: Colors.green.shade50,
+              title: const Text('Pola Makan'),
+              onTap: () => Navigator.push(
+                  context, MaterialPageRoute(builder: (_) => const DietPlanPage())),
             ),
             // Tambahkan bagian lainnya dari homepage Anda di sini
           ],

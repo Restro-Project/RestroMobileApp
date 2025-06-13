@@ -42,8 +42,6 @@ class ExercisePerformance {
   }
 }
 
-// Untuk menyimpan/memuat history
-
 
 const String HISTORY_KEY = 'rehab_history';
 

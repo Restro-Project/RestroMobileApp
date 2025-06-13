@@ -1,7 +1,6 @@
 // import 'package:cloud_firestore/cloud_firestore.dart';
 // import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 /* ────────────────────────────────────────────────────────── */
 /*  Halaman daftar kontak + pencarian                       */
@@ -23,7 +22,7 @@ class _ChatPageState extends State<ChatPage> {
     super.dispose();
   }
 
-  @override Widget build(BuildContext c)=>const Center(child:Text('Calendar'));
+  @override Widget build(BuildContext c)=>const Center(child:Text('Chat'));
 //     final uid   = FirebaseAuth.instance.currentUser!.uid;
 //     final users = FirebaseFirestore.instance
 //         .collection('users')

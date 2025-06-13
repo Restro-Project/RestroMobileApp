@@ -64,7 +64,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         'password'     : e.password,
         'nomor_telepon': e.phone,
       });
-      add(SignInRequested(e.email, e.password));   // auto login
+      emit(AuthSuccess());
     } catch (err) {
       emit(AuthFailure(_msg(err)));
     }
